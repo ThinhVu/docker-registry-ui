@@ -3,20 +3,20 @@ import _ from 'lodash'
 import {computed, onMounted, ref} from 'vue';
 import TimeDisplay from '@/components/UiLib/TimeDisplay';
 import Icon from '@/components/UiLib/Icon';
-import {deleteManifest, getAccessToken, getCatalog, getManifest, getRegistries, getTags, setAccessToken} from '@/api';
+import {addRegistry, deleteManifest, getCatalog, getManifest, getRegistries, getTags} from '@/api';
 import dialog from '@/components/UiLib/Api/dialog';
 import notification from '@/components/UiLib/Api/notification';
 import msgBox from '@/components/UiLib/Api/msg-box';
-
+import MSwitch from '@/components/UiLib/Switch';
+import Spacer from '@/components/UiLib/Spacer';
 const toMb = v => `${_.round(v / 1048576, 0)}MB`
-
 export default {
   name: 'index',
-  components: {TimeDisplay, Icon},
+  components: {TimeDisplay, Icon, Spacer},
   setup() {
     const registries = ref([])
     const selectedRegistryIndex = ref(0)
-    const selectedRegistry = computed(() => registries.value && registries.value.length && registries.value[selectedRegistryIndex.value])
+    const selectedRegistry = computed(() => !_.isEmpty(registries.value) && registries.value[selectedRegistryIndex.value])
     const repositories = ref([])
     const selectedRepository = ref()
     const tags = ref([])
@@ -28,9 +28,13 @@ export default {
         selectedRegistryIndex.value = registryIndex
         const data = await getCatalog(registryIndex)
         repositories.value = data.repositories
+        if (_.isEmpty(data.repositories)) {
+          notification.info('Empty')
+        }
       } catch (e) {
         console.error(e)
         repositories.value = []
+        notification.err(e.message)
       }
     }
     const exploreRepository = async (repository) => {
@@ -39,9 +43,13 @@ export default {
         const data = await getTags(selectedRegistryIndex.value, repository)
         console.log('exploreRepository', data)
         tags.value = data.tags || []
+        if (_.isEmpty(tags.value)) {
+          notification.info('Empty')
+        }
       } catch (e) {
         console.error(e)
         tags.value = []
+        notification.err(e.message)
       }
     }
     const exploreTag = async (tag) => {
@@ -67,81 +75,79 @@ export default {
       }
     }
 
-    const askForAccessToken = async () => {
+    const newRegistry = async () => {
       await dialog.show({
         component: {
+          components: {MSwitch},
           setup(_, {emit}) {
-            const accessToken = ref()
+            const alias = ref(), url = ref(), u = ref(), p = ref(), bypassCORS = ref();
+            const cancel = () => emit('close')
             const save = () => {
-              console.log('accessToken.value', accessToken.value)
-              if (accessToken.value) {
-                setAccessToken(accessToken.value)
-                emit('close')
-              }
+              if (!alias.value || !url.value || !u.value || !p.value)
+                return
+              addRegistry({
+                alias: alias.value,
+                registryUrl: url.value,
+                username: u.value,
+                password: p.value,
+                bypassCORS: bypassCORS.value
+              })
+              emit('close')
             }
+
             return () => <div class="bc-gray-0 mx-a px-2 py-2" style="border-radius: 6px">
-              <div class="mb-2">Enter access token:</div>
-              <div class="fr ai-c fg-1">
-                <input v-model={accessToken.value}/>
-                <button onClick={save}>Save</button>
+              <div class="fc fg-1">
+                <div class="fr ai-c jc-fs"><span style="width: 110px">Alias: </span><input class="ml-1" v-model={alias.value}/> </div>
+                <div class="fr ai-c jc-fs"><span style="width: 110px">Registry Url: </span><input class="ml-1"  v-model={url.value}/></div>
+                <div class="fr ai-c jc-fs"><span style="width: 110px">Username:</span><input class="ml-1"  v-model={u.value}/></div>
+                <div class="fr ai-c jc-fs"><span style="width: 110px">Password: </span><input class="ml-1"  v-model={p.value}/></div>
+                <div class="fr ai-c jc-fs"><span style="width: 110px">Bypass CORS: </span><m-switch v-model={bypassCORS.value}/></div>
+                <div class="fr jc-fe fg-1">
+                  <button onClick={cancel}>Cancel</button>
+                  <button onClick={save}>Save</button>
+                </div>
               </div>
             </div>
           }
         }
       })
     }
+    onMounted(async () => registries.value = await getRegistries())
 
-
-    onMounted(async () => {
-      const at = getAccessToken()
-      console.log('at', at)
-
-      if (!at) {
-        await askForAccessToken()
-      } else {
-        registries.value = await getRegistries()
-      }
-    })
-
-    return () => <div class="fr h-100vh v-100vw" style="background-color: #121212">
+    return () => <div class="fr h-100vh v-100vw" style="background-color: #121212; color: #fff">
       <div class="ovf-h fr">
-        <div
-            class="fc ovf-y-s hide-scroll-bar"
-            style="width: 280px; min-width: 280px; background-color: #363636; color: #fff; border-right: thin solid hsla(0,0%,100%,.12);">
-          {registries.value.map((item, i) => <div class="fr ai-c px-2 py-2 clickable" style={{
-            cursor: 'pointer',
-            margin: '4px',
-            borderRadius: '6px',
-            color: '#fff',
-            fontSize: '14px',
-            borderBottom: 'thin solid hsla(0,0%,100%,.12)'
-          }} onClick={() => exploreRegistry(i)}>
-            {item.registryUrl}
+        <div class="fc ovf-y-s hide-scroll-bar" style="border-right: thin solid hsla(0,0%,100%,.12);">
+          {registries.value.map((item, i) => <div class="px-2 py-2 clickable"
+                                                  style={{borderBottom: 'thin solid hsla(0,0%,100%,.12)' }}
+                                                  onClick={() => exploreRegistry(i)}>
+            {item.alias}
           </div>)}
+          <div class="px-2 py-2 clickable jc-c" style={{
+            borderBottom: 'thin solid hsla(0,0%,100%,.12)'
+          }} onClick={newRegistry}>Add Registry</div>
         </div>
-        <div class="ovf-h fr"
-             style="width: calc(100% - 280px); background-color: #363636; color: #fff;">
-          <div class="f1" style="border-right: thin solid hsla(0,0%,100%,.12);">
-            {repositories.value.map(repository => <div style={{borderBottom: 'thin solid hsla(0,0%,100%,.12)'}}
-                                                       class="px-2 py-2 clickable"
-                                                       onClick={() => exploreRepository(repository)}>
-              {repository}
-            </div>)}
-          </div>
-          <div class="f1">
-            {tags.value.map(tag => <div
-                style={{borderBottom: 'thin solid hsla(0,0%,100%,.12)'}}
-                class="fr ai-c fg-2 px-2 py-2 clickable">
-              <span onClick={() => exploreTag(tag)}>{tag}</span>
-              <spacer/>
-              <icon onClick={() => copy(tag)}>fas fa-copy:#fff</icon>
-              <icon onClick={() => remove(tag)}>fas fa-times:#fff</icon>
-            </div>)}
-          </div>
-          { selectedTag.value ? <div class="f1">
-            <p>Size: {size.value}</p>
-          </div> : null }
-        </div>
+
+        { selectedRegistry.value ? <div class="fc ovf-y-s hide-scroll-bar" style="border-right: thin solid hsla(0,0%,100%,.12);">
+          {repositories.value.map(repository => <div class="px-2 py-2 clickable"
+                                                     style={{borderBottom: 'thin solid hsla(0,0%,100%,.12)'}}
+                                                     onClick={() => exploreRepository(repository)}>
+            {repository}
+          </div>)}
+        </div> : null }
+
+        { selectedRepository.value ? <div class="ovf-y-s hide-scroll-bar" style="border-right: thin solid hsla(0,0%,100%,.12);">
+          {tags.value.map(tag => <div class="fr ai-c fg-2 px-2 py-2 clickable"
+                                      style={{borderBottom: 'thin solid hsla(0,0%,100%,.12)'}}>
+            <span onClick={() => exploreTag(tag)}>{tag}</span>
+            <spacer/>
+            <icon onClick={() => copy(tag)}>fas fa-copy@16:#fff</icon>
+            <icon onClick={() => remove(tag)}>fas fa-times@16:#fff</icon>
+          </div>)}
+        </div> : null }
+
+        { selectedTag.value ? <div class="ovf-y-s hide-scroll-bar">
+          <p>Size: {size.value}</p>
+        </div> : null }
       </div>
     </div>
   }
