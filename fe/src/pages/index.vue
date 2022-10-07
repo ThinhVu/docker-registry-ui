@@ -3,7 +3,7 @@ import _ from 'lodash'
 import {computed, onMounted, ref} from 'vue';
 import TimeDisplay from '@/components/UiLib/TimeDisplay';
 import Icon from '@/components/UiLib/Icon';
-import {addRegistry, deleteManifest, getCatalog, getManifest, getRegistries, getTags} from '@/api';
+import {addRegistry, removeRegistry, deleteManifest, getCatalog, getManifest, getRegistries, getTags} from '@/api';
 import dialog from '@/components/UiLib/Api/dialog';
 import notification from '@/components/UiLib/Api/notification';
 import msgBox from '@/components/UiLib/Api/msg-box';
@@ -101,7 +101,7 @@ export default {
     }
 
     const newRegistry = async () => {
-      await dialog.show({
+      const registryAdded = await dialog.show({
         component: {
           components: {MSwitch},
           setup(_, {emit}) {
@@ -117,7 +117,7 @@ export default {
                 password: p.value,
                 bypassCORS: bypassCORS.value
               })
-              emit('close')
+              emit('close', true)
             }
 
             return () => <div class="bc-gray-0 mx-a px-2 py-2" style="border-radius: 6px">
@@ -136,20 +136,23 @@ export default {
           }
         }
       })
+      if (registryAdded)
+        await loadRegistries()
     }
-    onMounted(async () => registries.value = await getRegistries())
+    const loadRegistries = async () => registries.value = await getRegistries()
+    onMounted(loadRegistries)
 
+    const styles = {
+      registryStyle: {borderBottom: 'thin solid hsla(0,0%,100%,.12)' }
+    }
     return () => <div class="fr h-100vh v-100vw" style="background-color: #121212; color: #fff">
       <div class="ovf-h fr">
         <div class="fc ovf-y-s hide-scroll-bar" style="border-right: thin solid hsla(0,0%,100%,.12);">
-          {registries.value.map((item, i) => <div class="px-2 py-2 clickable"
-                                                  style={{borderBottom: 'thin solid hsla(0,0%,100%,.12)' }}
-                                                  onClick={() => exploreRegistry(i)}>
-            {item.alias} { loading.value[`registry_${i}`] ? '...' : '' }
+          {registries.value.map((item, i) => <div class="px-2 py-2 clickable" style={styles.registryStyle} onClick={() => exploreRegistry(i)}>
+            <span class="mr-2">{item.alias} { loading.value[`registry_${i}`] ? '...' : '' }</span>
+            <icon onClick={() => removeRegistry(i)}>fas fa-times@16:#fff</icon>
           </div>)}
-          <div class="px-2 py-2 clickable jc-c" style={{
-            borderBottom: 'thin solid hsla(0,0%,100%,.12)'
-          }} onClick={newRegistry}>Add Registry</div>
+          <div class="px-2 py-2 clickable jc-c" style={styles.registryStyle} onClick={newRegistry}>Add Registry</div>
         </div>
 
         { selectedRegistry.value ? <div class="fc ovf-y-s hide-scroll-bar" style="border-right: thin solid hsla(0,0%,100%,.12);">

@@ -10,9 +10,14 @@ const set = (k, v) => localStorage.setItem(k, JSON.stringify(v))
 
 // registries
 export const getRegistries = () => get(LS_KEYS.REGISTRY, [])
-export const addRegistry = async ({alias, registryUrl, username, password, bypassCORS}) => {
+export const addRegistry = ({alias, registryUrl, username, password, bypassCORS}) => {
   const r = getRegistries()
   r.push({ alias, registryUrl, username, password, bypassCORS })
+  set(LS_KEYS.REGISTRY, r)
+}
+export const removeRegistry = index => {
+  const r = getRegistries()
+  r.splice(index, 1)
   set(LS_KEYS.REGISTRY, r)
 }
 export const getCatalog = async (registryId) => {
