@@ -55,7 +55,7 @@ export const getManifest = async (registryId, repository, tag) => {
     const {data} = await axios.get(`${registryUrl}/v2/${repository}/manifests/${tag}`, {
       headers: {
         authorization: `Basic ${btoa(`${username}:${password}`)}`,
-        accept: 'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json'
+        accept: 'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json'
       }
     })
     return data

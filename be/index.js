@@ -10,8 +10,8 @@ app.use(bodyParser.json())
 
 const btoa = (str) => Buffer.from(str).toString('base64')
 const resErr = (e, res) => {
-  console.error(e)
-  res.status(500).end(e.message)
+  console.error(e.response.data.errors)
+  res.status(500).end(JSON.stringify(e.response.data.errors[0].message))
 }
 const getOpt = (u, p, extra) => ({
   headers: {
@@ -43,10 +43,13 @@ app.get('/tags', async (req, res) => {
 app.get('/manifest', async (req, res) => {
   try {
     const {url, u, p, repository, tag} = req.query
-    const {data} = await axios.get(`${url}/v2/${repository}/manifests/${tag}`, getOpt(u, p, {
-      accept: 'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json'
+    const response = await axios.get(`${url}/v2/${repository}/manifests/${tag}`, getOpt(u, p, {
+      accept: 'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.index.v1+json'
     }))
-    res.json(data)
+    if (response.headers['docker-content-digest']) {
+      response.data.contentDigest = response.headers['docker-content-digest']
+    }
+    res.json(response.data)
   } catch (e) {
     resErr(e, res)
   }
@@ -55,7 +58,10 @@ app.get('/manifest', async (req, res) => {
 app.delete('/manifest', async (req, res) => {
   try {
     const {url, u, p, repository, digest} = req.query
-    const {data} = await axios.delete(`${url}/v2/${repository}/manifests/${digest}`, getOpt(u, p))
+    console.log('remove', digest)
+    const {data} = await axios.delete(`${url}/v2/${repository}/manifests/${digest}`, getOpt(u, p, {
+      accept: 'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json'
+    }))
     res.json(data)
   } catch (e) {
     resErr(e, res)

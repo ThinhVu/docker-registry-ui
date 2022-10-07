@@ -23,38 +23,49 @@ export default {
     const selectedTag = ref()
     const manifest = ref()
     const size = computed(() => manifest.value && toMb(_.sumBy(manifest.value.layers, layer => layer.size)))
+    const loading = ref({})
     const exploreRegistry = async (registryIndex) => {
+      loading.value[`registry_${registryIndex}`] = true
       try {
         selectedRegistryIndex.value = registryIndex
         const data = await getCatalog(registryIndex)
         repositories.value = data.repositories
-        if (_.isEmpty(data.repositories)) {
+        if (_.isEmpty(data.repositories))
           notification.info('Empty')
-        }
       } catch (e) {
         console.error(e)
         repositories.value = []
         notification.err(e.message)
       }
+      delete loading.value[`registry_${registryIndex}`]
     }
     const exploreRepository = async (repository) => {
       selectedRepository.value = repository
+      loading.value[`repo_${repository}`] = true
       try {
+        tags.value = []
         const data = await getTags(selectedRegistryIndex.value, repository)
-        console.log('exploreRepository', data)
-        tags.value = data.tags || []
-        if (_.isEmpty(tags.value)) {
+        tags.value = (data.tags || []).sort()
+        if (_.isEmpty(tags.value))
           notification.info('Empty')
-        }
       } catch (e) {
         console.error(e)
         tags.value = []
         notification.err(e.message)
       }
+      delete loading.value[`repo_${repository}`]
     }
     const exploreTag = async (tag) => {
       selectedTag.value = tag
-      manifest.value = await getManifest(selectedRegistryIndex.value, selectedRepository.value, tag)
+      loading.value[`tag_${tag}`] = true
+      try {
+        manifest.value = []
+        manifest.value = await getManifest(selectedRegistryIndex.value, selectedRepository.value, tag)
+        console.log(manifest.value)
+      } catch (e) {
+        console.error(e)
+      }
+      delete loading.value[`tag_${tag}`]
     }
     const copy = async (tag) => {
       const registry = selectedRegistry.value.registryUrl.split('://')[1];
@@ -66,11 +77,25 @@ export default {
       const rs = await msgBox.show('Confirm delete', 'Delete this image?', msgBox.Buttons.YesNo, msgBox.Icons.Question)
       if (rs === msgBox.Results.yes) {
         try {
+          loading.value[`delete-tag_${tag}`] = true
           const manifest = await getManifest(selectedRegistryIndex.value, selectedRepository.value, tag)
-          const digest = manifest.config.digest
-          await deleteManifest(selectedRegistryIndex.value, selectedRepository.value, digest)
+          let contentDigest;
+          if (manifest.contentDigest) {
+            contentDigest = manifest.contentDigest
+          } else {
+            notification.err('content digest is missing')
+            return
+            // const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(manifest)));
+            // contentDigest = 'sha256:' + Array.from(new Uint8Array(buffer)).map((byte) => byte.toString(16).padStart(2, '0')).join('')
+          }
+          console.log('contentDigest', contentDigest)
+          await deleteManifest(selectedRegistryIndex.value, selectedRepository.value, contentDigest)
+          notification.success('Manifest has been deleted')
+          tags.value = tags.value.filter(item => item !== tag)
         } catch (e) {
           notification.err(e.response.data)
+        } finally {
+          delete loading.value[`delete-tag_${tag}`]
         }
       }
     }
@@ -120,7 +145,7 @@ export default {
           {registries.value.map((item, i) => <div class="px-2 py-2 clickable"
                                                   style={{borderBottom: 'thin solid hsla(0,0%,100%,.12)' }}
                                                   onClick={() => exploreRegistry(i)}>
-            {item.alias}
+            {item.alias} { loading.value[`registry_${i}`] ? '...' : '' }
           </div>)}
           <div class="px-2 py-2 clickable jc-c" style={{
             borderBottom: 'thin solid hsla(0,0%,100%,.12)'
@@ -131,14 +156,18 @@ export default {
           {repositories.value.map(repository => <div class="px-2 py-2 clickable"
                                                      style={{borderBottom: 'thin solid hsla(0,0%,100%,.12)'}}
                                                      onClick={() => exploreRepository(repository)}>
-            {repository}
+            {repository} { loading.value[`repo_${repository}`] ? '...' : '' }
           </div>)}
         </div> : null }
 
         { selectedRepository.value ? <div class="ovf-y-s hide-scroll-bar" style="border-right: thin solid hsla(0,0%,100%,.12);">
           {tags.value.map(tag => <div class="fr ai-c fg-2 px-2 py-2 clickable"
                                       style={{borderBottom: 'thin solid hsla(0,0%,100%,.12)'}}>
-            <span onClick={() => exploreTag(tag)}>{tag}</span>
+            <span onClick={() => exploreTag(tag)}>
+              {loading.value[`delete-tag_${tag}`] ? 'Removing ' : ''}
+              {tag}
+              {loading.value[`tag_${tag}`] ? '...' : '' }
+            </span>
             <spacer/>
             <icon onClick={() => copy(tag)}>fas fa-copy@16:#fff</icon>
             <icon onClick={() => remove(tag)}>fas fa-times@16:#fff</icon>
