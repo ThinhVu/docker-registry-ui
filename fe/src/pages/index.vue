@@ -8,16 +8,19 @@ import notification from '@/components/UiLib/Api/notification';
 import msgBox from '@/components/UiLib/Api/msg-box';
 import MSwitch from '@/components/UiLib/Switch';
 import Spacer from '@/components/UiLib/Spacer';
+import {useVOnboarding, VOnboardingWrapper} from 'v-onboarding';
+import 'v-onboarding/dist/style.css';
 
 const toMb = v => `${_.round(v / 1048576, 0)}MB`
 
 export default {
   name: 'index',
-  components: {Icon, Spacer},
+  components: {Icon, Spacer, VOnboardingWrapper},
   setup() {
     const busy = ref({})
 
     // registry
+    const addRegistryBtn = ref()
     const registries = ref([])
     const selectedRegistryIndex = ref(-1)
     const selectedRegistry = computed(() => selectedRegistryIndex.value >= 0 && !_.isEmpty(registries.value) && registries.value[selectedRegistryIndex.value])
@@ -45,19 +48,19 @@ export default {
             return () => <div class="bc-gray-0 mx-a px-2 py-2" style="border-radius: 6px">
               <div class="fc fg-1">
                 <div class="fr ai-c jc-fs">
-                  <span style="width: 110px">Alias: </span><input class="ml-1" v-model={alias.value}/></div>
+                  <span style="width: 110px">Alias: </span><input id="registry-alias" class="ml-1" v-model={alias.value}/></div>
                 <div class="fr ai-c jc-fs"><span style="width: 110px">Registry
-                  Url: </span><input class="ml-1" v-model={url.value}/></div>
+                  Url: </span><input id="registry-url" class="ml-1" v-model={url.value}/></div>
                 <div class="fr ai-c jc-fs">
-                  <span style="width: 110px">Username:</span><input class="ml-1" v-model={u.value}/></div>
+                  <span style="width: 110px">Username:</span><input id="registry-username" class="ml-1" v-model={u.value}/></div>
                 <div class="fr ai-c jc-fs">
-                  <span style="width: 110px">Password: </span><input class="ml-1" v-model={p.value}/></div>
+                  <span style="width: 110px">Password: </span><input id="registry-password" class="ml-1" v-model={p.value}/></div>
                 <div class="fr ai-c jc-fs"><span style="width: 110px">Bypass CORS: </span>
-                  <m-switch v-model={bypassCORS.value}/>
+                  <m-switch id="registry-cors" v-model={bypassCORS.value}/>
                 </div>
                 <div class="fr jc-fe fg-1">
                   <button onClick={cancel}>Cancel</button>
-                  <button onClick={save}>Save</button>
+                  <button id="save-registry-btn" onClick={save}>Save</button>
                 </div>
               </div>
             </div>
@@ -172,7 +175,30 @@ export default {
       }
     }
 
-    onMounted(loadRegistries)
+    // onboarding
+    const steps = [
+      {
+        attachTo: { element: '#add-registry' },
+        content: { title: "Hello there!", description: "Look like your registry list is empty. Let's add one!" },
+        on: {
+          afterStep: () => addRegistryBtn.value.click()
+        }
+      },
+      { attachTo: { element: '#registry-alias' }, content: { title: "Set alias", description: "A friendly name of your register" } },
+      { attachTo: { element: '#registry-url' }, content: { title: "Set url", description: "Where your Docker registry located. E.g: https://docker.your-server.com" } },
+      { attachTo: { element: '#registry-username' }, content: { title: "Set username", description: "Set registry username. Keep in mind that we don't collect this information, it'll be stored in your localStorage." } },
+      { attachTo: { element: '#registry-password' }, content: { title: "Set password", description: "Set registry password. Keep in mind that we don't collect this information, it'll be stored in your localStorage." } },
+      { attachTo: { element: '#registry-cors' }, content: { title: "Bypass CORS", description: "Some private registry doesn't allow CORS due to incorrect configuration, turn on this flag resolve the issue." } },
+      { attachTo: { element: '#save-registry-btn' }, content: { title: "Finish", description: "Now, click this button to finish your first registry" } },
+    ]
+    const wrapper = ref(null)
+    const { start } = useVOnboarding(wrapper)
+
+    onMounted(() => {
+      loadRegistries()
+      if (!registries.value.length)
+        start()
+    })
 
     const styles = {
       app: {backgroundColor: '#121212', color: '#fff'},
@@ -185,8 +211,9 @@ export default {
     }
 
     return () => <div class="fr h-100vh v-100vw ovf-h" style={styles.app}>
+      <v-onboarding-wrapper ref={wrapper} steps={steps} style="color: #000"/>
       <section data-name="registries" class={classes.list} style={styles.list}>
-        <div class={classes.listItem} style={styles.listItem} onClick={newRegistry}>Add Registry</div>
+        <div id="add-registry" ref={addRegistryBtn} class={classes.listItem} style={styles.listItem} onClick={newRegistry}>Add Registry</div>
         {registries.value.map((item, i) =>
             <div class={classes.listItem} style={styles.listItem} onClick={() => exploreRegistry(i)}>
               <span>{item.alias} {busy.value[`registry_${i}`] ? '...' : ''}</span>

@@ -16,6 +16,7 @@
     "sass": "^1.54.3",
     "sass-loader": "^13.0.2",
     "style-loader": "^3.3.1",
+    "v-onboarding": "^2.1.0",
     "vue": "^3.2.13",
     "vue-router": "^4.1.3"
   },
