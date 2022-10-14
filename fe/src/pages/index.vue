@@ -64,11 +64,10 @@ export default {
           }
         }
       })
-      if (registryAdded) {
-        await loadRegistries()
-      }
+      if (registryAdded)
+        loadRegistries()
     }
-    const loadRegistries = async () => registries.value = await getRegistries()
+    const loadRegistries = () => registries.value = getRegistries()
     const confirmRemoveRegistry = async (i) => {
       const response = await msgBox.show(
           'Remove registry',
